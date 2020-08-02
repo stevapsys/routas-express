@@ -1,5 +1,8 @@
 //importanto express e chamando ele
 import express from "express"; 
+//important o winston pra criar os logs de erros
+import winston from "winston";
+
 const app = express(); 
 //avisando o express que queremos trabalhar com o json
 app.use(express.json()); 
@@ -105,6 +108,72 @@ const callback1 = (req, res, next) => {
     .delete((req,res)=> {
         res.send("DELETE")
     });
+
+//tratamento de erros
+
+//para funções assincronas tem que usar o try catch 
+    app.post("/erro", async (req, res, next) => {
+        try {
+            throw new Error ("Error message async")
+        } catch (err) {
+            next()
+        }
+    });
+
+    app.get("/erro",(req, res) => {
+        //simulando um erro
+        throw new Error ("Error message test")
+    });
+
+    //colocar sempre no final pra pegar todas as requesições
+    app.use((err, req, res, next) => {
+        console.log("Error 1");
+        next(err); 
+    });
+    app.use((err, req, res, next) => {
+        console.log("Error 2");
+        next(); 
+        res.status(500).send("Ocorreu um erro, tente novamente mais tarde")
+    });
+       
+//usando o winston pra checar os logs
+
+const {combine, printf, label, timestamp} = winston.format; 
+const myFormat = printf(({level, message, label, timestamp}) => {
+    return `${timestamp} [${label}] ${level} : ${message}`
+})
+
+//crindo o logger
+const logger = winston.createLogger({
+    //nivel do erro. o Silly é o último 
+    level: "silly",
+    transports: [
+        //para mostrar no console 
+        new(winston.transports.Console)(),
+        //para criar um arquvio
+        new(winston.transports.File)({filename: "my-log.log"}),
+    ],
+    //formato que vai mostrar o erro
+    format: combine(
+        label({label: "my-app"}),
+        timestamp(),
+        myFormat
+    )
+}); 
+
+//chamando os logs
+logger.error("Error log");
+logger.warn("Warn log");
+logger.verbose("Verbose log");
+logger.debug("Debug");
+logger.silly("Silly log"); 
+
+logger.log("info", "Hello with parameter!"); 
+
+//servido arquivos estáticos
+app.use(express.static("public")); 
+
+app.use("/images", express.static("public"));
 
 //chamando os metódos pra porta 3000 - SEMPRE NO FINAL
 app.listen(3000, () => {
